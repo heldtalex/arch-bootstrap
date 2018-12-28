@@ -131,7 +131,11 @@ arch-chroot /mnt ln -sf /usr/share/zoneinfo/Europe/Stockholm /etc/localtime
 
 arch-chroot /mnt hwclock --systohc --utc
 
-# TODO enable synced clock
+# Set ntp
+arch-chroot /mnt timedatectrl set-ntp true
+
+# Start time sync service on boot
+arch-chrood /mnt systemctl enable systemd-timesyncd.servie
 
 # Set default keymap
 echo "KEYMAP=sv-latin1" > /mnt/etc/vconsole.conf
