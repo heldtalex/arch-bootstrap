@@ -60,6 +60,15 @@ sgdisk -p $DISK
 partprobe $DISK
 fdisk -l $DISK
 
+# Create the encrypted root partition
+cryptsetup luksFormat --align-payload=8192 -s 256 -c aes-xts-plain64 $DISK_ROOT
+
+# Open the encrypted root partition with the label "root"
+cryptsetup open $DISK_ROOT root
+
+# format the root partition as btrfs
+mkfs.btrfs --force --label root /dev/mapper/root
+
 # Format the EFI partition
 mkfs.vfat -n EFI $DISK_EFI
 
@@ -69,15 +78,6 @@ cryptsetup open --type plain --key-file=/dev/random $DISK_SWAP swap
 # Create the swap partition
 mkswap -L swap /dev/mapper/swap
 swapon -L swap
-
-# Create the encrypted root partition
-cryptsetup luksFormat --align-payload=8192 -s 256 -c aes-xts-plain64 $DISK_ROOT
-
-# Open the encrypted root partition with the label "root"
-cryptsetup open $DISK_ROOT root
-
-# format the root partition as btrfs
-mkfs.btrfs --force --label root /dev/mapper/root
 
 MOUNT_OPTIONS=rw,noatime,compress=lzo,ssd,x-mount.mkdir #space_cache?
 
