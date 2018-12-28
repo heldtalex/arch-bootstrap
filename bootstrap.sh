@@ -160,7 +160,7 @@ options cryptdevice=PARTUUID=$ROOT_PARTUUID:cryptroot root=/dev/mapper/cryptroot
 EOF
 
 # Let all wheel users use sudo
-echo '%wheel ALL=(ALL) ALL' | EDITOR='tee -a' visudo
+arch-chroot /mnt echo '%wheel ALL=(ALL) ALL' | EDITOR='tee -a' visudo
 
 # Set root password
 echo "Set password for root"
