@@ -167,11 +167,11 @@ options cryptdevice=PARTUUID=$ROOT_PARTUUID:cryptroot root=/dev/mapper/cryptroot
 EOF
 
 # Let all wheel users use sudo
-arch-chroot /mnt echo '%wheel ALL=(ALL) ALL' | EDITOR='tee -a' visudo
+sed -i 's/# \(%wheel ALL=(ALL) ALL\)/\1/' /mnt/etc/sudoers
 
 # Set root password
 echo "Set password for root"
-passwd
+arch-chroot /mnt passwd
 
 # set user name and password
 read -p "Enter user name: " USERNAME
@@ -189,6 +189,6 @@ while [ -z "$USERPASS" ]; do
 done
 
 arch-chroot /mnt useradd --create-home -m -G wheel,storage,power,video,audio $USERNAME
-echo "$USERNAME:$USERPASS" | chpasswd
+echo "$USERNAME:$USERPASS" | chpasswd --root /mnt
 
 unset USERPASS
