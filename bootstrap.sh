@@ -181,7 +181,7 @@ while [ -z "$USERPASS" ]; do
   unset USERPASS2
 done
 
-useradd -m -G wheel,storage,power,video,audio $USERNAME
+arch-chroot /mnt useradd --create-home -m -G wheel,storage,power,video,audio $USERNAME
 echo "$USERNAME:$USERPASS" | chpasswd
 
 unset USERPASS
