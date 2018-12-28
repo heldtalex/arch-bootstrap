@@ -127,9 +127,9 @@ echo "LANG=en_US.UTF-8" >> /mnt/etc/locale.conf
 echo 'name_servers="1.1.1.1 1.0.0.1"' >> /mnt/etc/resolvconf.conf
 
 # Set timezone and clock
-ln -sf /usr/share/zoneinfo/Europe/Stockholm /etc/localtime
+arch-chroot /mnt ln -sf /usr/share/zoneinfo/Europe/Stockholm /etc/localtime
 
-hwclock --systohc --utc
+arch-chroot /mnt hwclock --systohc --utc
 
 # TODO enable synced clock
 
