@@ -134,7 +134,7 @@ hwclock --systohc --utc
 echo "KEYMAP=sv-latin1" > /mnt/etc/vconsole.conf
 
 # Update boot hooks
-sed -i "s/HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)/HOOKS=(base udevautodetect modconf block keyboard keymap encrypt filesystems btrfs)/" /etc/mkinitcpio.conf
+sed -i "s/HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)/HOOKS=(base udev autodetect modconf block keyboard keymap encrypt filesystems btrfs)/" /mnt/etc/mkinitcpio.conf
 
 # Regenerate initramfs image
 arch-chroot /mnt mkinitcpio -p linux #TODO is arch-chroot needed?
@@ -163,7 +163,7 @@ EOF
 echo '%wheel ALL=(ALL) ALL' | EDITOR='tee -a' visudo
 
 # Set root password
-echo "Enter password for root :"
+echo "Set password for root"
 passwd
 
 # set user name and password
