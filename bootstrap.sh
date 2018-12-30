@@ -102,7 +102,7 @@ mkdir /mnt/boot
 mount LABEL=EFI /mnt/boot
 
 # Install base system
-pacstrap /mnt base base-devel btrfs-progs intel-ucode zsh vim dialog wpa_supplicant
+pacstrap /mnt base base-devel btrfs-progs intel-ucode dialog wpa_supplicant
 
 # Generate fstab
 genfstab -L -p /mnt >> /mnt/etc/fstab
