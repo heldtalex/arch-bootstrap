@@ -1,5 +1,10 @@
 ## Bootstraping for Arch
 
+### Install git
+```
+pacman -Sy git
+```
+
 ### Clone the repo
 ```
 git clone https://github.com/heldtalex/arch-bootstrap
