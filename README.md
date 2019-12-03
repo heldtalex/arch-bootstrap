@@ -1,5 +1,10 @@
 ## Bootstraping for Arch
 
+### Set keyboard layout
+```
+loadkeys sv-latin1
+```
+
 ### Install git
 ```
 pacman -Sy git
