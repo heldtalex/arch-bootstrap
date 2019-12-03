@@ -35,9 +35,10 @@ sgdisk -Z $DISK
 EFI_SPACE=512M
 BOOT_SPACE=512M
 
-# Assuming 16GB ram gives 20GB swap space
 # https://itsfoss.com/swap-size/
-SWAP_SPACE=20G
+RAM_SIZE=$(free --giga | tail -n+2 | head -1 | awk '{print $2}')
+SQRT_RAM_SIZE=$(echo "scale=2; sqrt($RAM_SIZE)" | bc -l)
+SWAP_SPACE=$(($RAM_SIZE + $SQRT_RAM_SIZE))G
 
 # Ensure there's a fresh GPT
 sgdisk -og $DISK
@@ -82,10 +83,10 @@ cryptsetup open $DISK_LVM lvm
 exit 0
 
 # Create the encrypted ???
-pvcreate $DISK_LVM
+pvcreate /dev/mapper/lvm
 
 # Create the ???
-vgcreate ArchVG $DISK_LVM
+vgcreate ArchVG /dev/mapper/lvm
 
 # Create the ???
 lvcreate -L +$SWAP_SPACE ArchVG -n swap
