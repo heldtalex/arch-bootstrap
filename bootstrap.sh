@@ -33,26 +33,25 @@ wipefs -fa $DISK
 sgdisk -Z $DISK
 
 EFI_SPACE=512M
-# set to half amount of RAM
-SWAP_SPACE=$(($(free --giga | tail -n+2 | head -1 | awk '{print $2}') / 2))G
-# special case when there's very little ram
-if [ "$SWAP_SPACE" = "0G" ]; then
-    SWAP_SPACE="1G"
-fi
+BOOT_SPACE=512M
+
+# Assuming 16GB ram gives 20GB swap space
+# https://itsfoss.com/swap-size/
+SWAP_SPACE=20G
 
 # Ensure there's a fresh GPT
 sgdisk -og $DISK
 
 # Partition the disk
 sgdisk --clear \
-       --new=1:0:+$EFI_SPACE  --typecode=1:ef00 --change-name=1:EFI \
-       --new=2:0:+$SWAP_SPACE --typecode=2:8200 --change-name=2:cryptswap \
-       --new=3:0:0            --typecode=2:8200 --change-name=3:cryptroot \
-         $DISK
+        --new=1:0:+$EFI_SPACE  --typecode=1:ef00 --change-name=1:EFI \
+        --new=2:0:+$BOOT_SPACE --typecode=2:8300 --change-name=2:cryptboot \
+        --new=3:0:0            --typecode=2:8e00 --change-name=3:cryptlvm \
+        $DISK
 
 DISK_EFI="/dev/disk/by-partlabel/EFI"
-DISK_SWAP="/dev/disk/by-partlabel/cryptswap"
-DISK_ROOT="/dev/disk/by-partlabel/cryptroot"
+DISK_BOOT="/dev/disk/by-partlabel/cryptboot"
+DISK_LVM="/dev/disk/by-partlabel/cryptlvm"
 
 sgdisk -p $DISK
 
@@ -60,111 +59,113 @@ sgdisk -p $DISK
 partprobe $DISK
 fdisk -l $DISK
 
-# Create the encrypted root partition
-cryptsetup luksFormat --align-payload=8192 -s 256 -c aes-xts-plain64 $DISK_ROOT
+# Format the EFI partition as fat32
+mkfs.vfat -F 32 $DISK_EFI
 
-# Open the encrypted root partition with the label "root"
-cryptsetup open $DISK_ROOT root
+# Create the encrypted boot partition
+cryptsetup -c aes-xts-plain64 -h sha512 -s 512 --use-random luksFormat $DISK_BOOT
 
-# format the root partition as btrfs
-mkfs.btrfs --force --label root /dev/mapper/root
+# Open the encrypted boot partition with the label "boot"
+cryptsetup open $DISK_BOOT boot
 
-# Format the EFI partition
-mkfs.vfat -n EFI $DISK_EFI
+# Format the boot partition as ext4
+mkfs.ext4 /dev/mapper/boot
 
-# Open the swap partition with a random key with the label "swap"
-cryptsetup open --type plain --key-file=/dev/random $DISK_SWAP swap
+# Create the encrypted LVM partition
+cryptsetup -c aes-xts-plain64 -h sha512 -s 512 --use-random luksFormat $DISK_LVM
+
+# Open the encrypted LVM partition with the label "lvm"
+cryptsetup open $DISK_LVM lvm
+
+# Create the encrypted ???
+pvcreate $DISK_LVM
+
+# Create the ???
+vgcreate ArchVG $DISK_LVM
+
+# Create the ???
+lvcreate -L +$SWAP_SPACE ArchVG -n swap
+lvcreate -l +100%FREE ArchVG -n root
 
 # Create the swap partition
-mkswap -L swap /dev/mapper/swap
-swapon -L swap
+mkswap /dev/mapper/ArchVG-swap
 
-MOUNT_OPTIONS=rw,noatime,compress=lzo,ssd,x-mount.mkdir #space_cache?
+# ... and turn it on (?)
+swapon /dev/mapper/ArchVG-swap
 
-# Mount root and create btrfs subvolumes
-mount -o $MOUNT_OPTIONS LABEL=root /mnt
+# Format the root partition as ext4
+mkfs.ext4 /dev/mapper/ArchVG-root
 
-# TODO create @var?
-cd /mnt
-btrfs subvolume create @
-btrfs subvolume create @home
-btrfs subvolume create @snapshots
-cd
+# Mount the root partition
+mount /dev/mapper/ArchVG-root /mnt
 
-umount -R /mnt
-
-mount -t btrfs -o subvol=@,$MOUNT_OPTIONS LABEL=root /mnt
-mount -t btrfs -o subvol=@home,$MOUNT_OPTIONS LABEL=root /mnt/home
-mount -t btrfs -o subvol=@snapshots,$MOUNT_OPTIONS LABEL=root /mnt/.snapshots
-
-# Mount EFI partition
+# Create the boot directory in root
 mkdir /mnt/boot
-mount LABEL=EFI /mnt/boot
+
+# ... and mount the encrypted boot partition there
+mount /dev/mapper/boot /mnt/boot
+
+# Create the efi directory in root
+mkdir /mnt/boot/efi
+
+# ... and mount the efi partition there
+mount $DISK_EFI /mnt/boot/efi
 
 # Install base system
-pacstrap /mnt base base-devel btrfs-progs intel-ucode dialog wpa_supplicant
+pacstrap /mnt base linux linux-firmware intel-ucode grub-efi-x86_64 efibootmgr dialog wpa_supplicant vim
 
 # Generate fstab
-genfstab -L -p /mnt >> /mnt/etc/fstab
+genfstab -U /mnt >> /mnt/etc/fstab
 
 # Ensure that we can see the swap
-sed -i "s+LABEL=swap+/dev/mapper/swap+" /mnt/etc/fstab
-
-# Add the swap to crypttab to be opened on boot
-echo "swap $DISK_SWAP /dev/urandom swap,cipher=aes-cbc-essiv:sha256,size=256" >> /mnt/etc/crypttab
+#sed -i "s+LABEL=swap+/dev/mapper/swap+" /mnt/etc/fstab
 
 # Set the hostname
 echo $HOST > /mnt/etc/hostname
-
-#TODO set hosts
 
 # Set locale
 echo "en_US.UTF-8 UTF-8" >> /mnt/etc/locale.gen
 arch-chroot /mnt locale-gen
 echo "LANG=en_US.UTF-8" >> /mnt/etc/locale.conf
 
+# Set default keymap
+echo "KEYMAP=sv-latin1" > /mnt/etc/vconsole.conf
+
 # Set name servers
 echo 'name_servers="1.1.1.1 1.0.0.1"' >> /mnt/etc/resolvconf.conf
 
-# Set timezone and clock
+# Set timezone
 arch-chroot /mnt ln -sf /usr/share/zoneinfo/Europe/Stockholm /etc/localtime
 
+# ... and clock
 arch-chroot /mnt hwclock --systohc --utc
 
 # Set ntp
 arch-chroot /mnt timedatectrl set-ntp true
 
 # Start time sync service on boot
-arch-chrood /mnt systemctl enable systemd-timesyncd.servie
-
-# Set default keymap
-echo "KEYMAP=sv-latin1" > /mnt/etc/vconsole.conf
+arch-chrood /mnt systemctl enable systemd-timesyncd.service
 
 # Update boot hooks
-sed -i "s/HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)/HOOKS=(base udev autodetect modconf block keyboard keymap encrypt filesystems btrfs)/" /mnt/etc/mkinitcpio.conf
+sed -i "s/HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)/HOOKS=(base udev autodetect modconf block keyboard keymap encrypt lvm2
+resume filesystems fsck)/" /mnt/etc/mkinitcpio.conf
+
+## --- CONTIHUE HERE ---
 
 # Regenerate initramfs image
 arch-chroot /mnt mkinitcpio -p linux #TODO is arch-chroot needed?
 
-# Install systemd-boot loader
-arch-chroot /mnt bootctl --path=/boot install
+# Enable boot partition from encrypted LVM
+sed -i 's/# \(GRUB_ENABLE_CRYPTODISK=y)/\1/' /etc/default/grub
 
-# Configure the boot loader
-cat > /mnt/boot/loader/loader.conf << EOF
-default	arch
-timeout	3
-editor	0
-EOF
+exit 0
 
-# Add default entry to boot loader
-ROOT_PARTUUID=$(blkid -s PARTUUID -o value $DISK_ROOT)
-cat > /mnt/boot/loader/entries/arch.conf << EOF
-title	Archerino
-linux	/vmlinuz-linux
-initrd  /intel-ucode.img
-initrd	/initramfs-linux.img
-options cryptdevice=PARTUUID=$ROOT_PARTUUID:cryptroot root=/dev/mapper/cryptroot rw rootflags=subvol=@
-EOF
+# Install grub
+arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Archerino
+
+GRUB_CMDLINE_LINUX="cryptdevice=${DISK_LVM}:lvm resume=/dev/mapper/ArchVG-swap i915.enable_guc=3"
+
+arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 
 # Let all wheel users use sudo
 sed -i 's/# \(%wheel ALL=(ALL) ALL\)/\1/' /mnt/etc/sudoers
