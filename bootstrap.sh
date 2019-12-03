@@ -66,6 +66,7 @@ mkfs.vfat -F 32 $DISK_EFI
 cryptsetup -c aes-xts-plain64 -h sha512 -s 512 --use-random luksFormat $DISK_BOOT
 
 # Open the encrypted boot partition with the label "boot"
+echo "Opening encrypted boot partition"
 cryptsetup open $DISK_BOOT boot
 
 # Format the boot partition as ext4
@@ -75,7 +76,10 @@ mkfs.ext4 /dev/mapper/boot
 cryptsetup -c aes-xts-plain64 -h sha512 -s 512 --use-random luksFormat $DISK_LVM
 
 # Open the encrypted LVM partition with the label "lvm"
+echo "Opening encrypted LVM partition"
 cryptsetup open $DISK_LVM lvm
+
+exit 0
 
 # Create the encrypted ???
 pvcreate $DISK_LVM
