@@ -80,8 +80,6 @@ cryptsetup -c aes-xts-plain64 -h sha512 -s 512 --use-random luksFormat $DISK_LVM
 echo "Opening encrypted LVM partition"
 cryptsetup open $DISK_LVM lvm
 
-exit 0
-
 # Create the encrypted ???
 pvcreate /dev/mapper/lvm
 
