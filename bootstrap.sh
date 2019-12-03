@@ -154,7 +154,7 @@ sed -i "s/HOOKS=(base udev autodetect modconf block filesystems keyboard fsck)/H
 resume filesystems fsck)/" /mnt/etc/mkinitcpio.conf
 
 ## --- CONTIHUE HERE ---
-
+exit 0
 # Regenerate initramfs image
 arch-chroot /mnt mkinitcpio -p linux #TODO is arch-chroot needed?
 
